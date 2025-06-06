@@ -1,0 +1,381 @@
+- Dataset creation -
+
+Basically we had a very big file and from this file we have created the required datasets i.e. customers_data, loans_data, loan_repayments and loan_defaulters.
+
+
+- Creation of customers_data - 
+
+The customers_data is having information about the borrowers.
+
+Selecting the columns member_id, emp_title, emp_length, home_ownership,annual_inc, addr_state, zip_code, country, grade, sub_grade,verification_status, tot_hi_cred_lim, application_type, annual_inc_joint,verification_status_joint of the raw file to create customers_data.
+
+
+- Steps for dataset creation -
+
+Step1- 
+Using “withColumn”, create a new column “emp_id”.
+As the accepted_2007_to_2018Q4.csv dataset is having a member_id column which is having null values, thus we have to create a unique emp_id column.
+
+Below query is used to create the column “emp_id”.
+withColumn("emp_id", sha2(concat_ws('||',
+*['emp_title','emp_length','home_ownership','annual_inc','zip_code','addr_state
+','grade','sub_grade','verification_status']), 256))
+
+Using the “sha2” function to create the hash values for each customer using
+the information in 9 existing columns of the dataset and creating an emp_id
+column. And this hash value will repeat only when the values for all 9 columns
+are the same.
+
+
+Step2- 
+Using spark sql query to select the information related to customersand using DataFrame writer API to write the output to the required folder.Using repartition(1) to save all the data in a single file.
+
+spark.sql("""select emp_id as member_id, emp_title, emp_length,
+home_ownership, annual_inc, addr_state, zip_code, 'USA' as country, grade,
+sub_grade,
+verification_status, tot_hi_cred_lim, application_type, annual_inc_joint,
+verification_status_joint from new_table""").repartition(1) \
+.write \
+.format("csv") \
+.mode("overwrite") \
+.option("header", True) \
+.option("path", "/user/itv006753/ASH/LendingCLubData/raw/Customer_data") \
+.save()
+
+
+- Creation of Loans_data -
+
+Loans_data is having details about the loans given by the institution.
+
+Selecting the columns Loan_id, member_id, loan_amnt, funded_amnt, term,int_rate, installment, issue_d, Loan_status, purpose, title of the raw file to create Loans_data.
+
+
+- Step for dataset creation: -
+
+Using the spark sql query to select the information related to loans and using DataFrame writer API to write the output to the required folder. Using repartition(1) to save all the data in a single file.
+
+spark.sql("""select id as loan_id, emp_id as member_id, loan_amnt,
+funded_amnt, term, int_rate, installment, issue_d, loan_status, purpose, title
+from new_table""").repartition(1) \
+.write \
+.format("csv") \
+.mode("overwrite") \
+.option("header", True) \
+.option("path", "/user/itv006753/ASH/LendingCLubData/raw/Loan_data") \
+.save()
+
+
+- Creation of Loan_repayments -
+
+Loan_repayments is having details about the loans repayment history. Selecting the columns loan_id, total_rec_prncp, total_rec_int, total_rec_late_fee, total_pymnt, last_pymnt_amnt, last_pymnt_d, next_pymnt_d of the raw file to create Loans_data.
+
+
+- Step for dataset creation -
+
+Using spark sql query to select the information related to loans and using DataFrame writer API to write the output to the required folder. Using repartition to save all the data in a single file.
+
+spark.sql("""select id as loan_id, total_rec_prncp, total_rec_int,
+total_rec_late_fee, total_pymnt,
+last_pymnt_amnt, last_pymnt_d, next_pymnt_d from
+new_table""").repartition(1) \
+.write \
+.format("csv") \
+.mode("overwrite") \
+.option("header", True) \
+.option("path",
+"/user/itv006753/ASH/LendingCLubData/raw/Loan_repayment_data") \
+.save()
+
+
+- Creation of Loan_defaulters -
+
+Loan_defaulters is the dataset having data about all the defaulters.
+
+Selecting the columns member_id(defaulter), delinq_2yrs, delinq_amnt, pub_rec, pub_rec_bankruptcies, inq_last_6mths, total_rec_late_fee, mths_since_last_delinq, mths_since_last_record of the raw file to create Loans_data.
+
+
+- Step for dataset creation -
+
+Using spark sql query to select the information related to loans and using DataFrame writer API we have written the output to the required folder.
+
+Using repartition to save all the data in a single file.
+
+spark.sql("""select emp_id as member_id, delinq_2yrs, delinq_amnt, pub_rec,
+pub_rec_bankruptcies, inq_last_6mths, total_rec_late_fee,
+mths_since_last_delinq, mths_since_last_record from
+new_table""").repartition(1) \
+.write \
+.format("csv") \
+.mode("overwrite") \
+.option("header", True) \
+.option("path",
+"/user/itv006753/ASH/LendingCLubData/raw/Loan_defaulters_data") \
+.save()
+
+
+- Cleaning of customers_data -
+
+During the cleaning process of "customers_data" modifications were applied
+to the data initially stored in the raw folder. After processing, the cleaned data
+was saved in the cleaned folder.
+
+1. To give the correct schema we have explicitly mentioned the schema while
+creating the customer_raw dataframe. The defined schema is as below
+customer_schema = 'member_id string, emp_title string, emp_length string,
+home_ownership string, annual_inc float, addr_state string, zip_code string,
+country string, grade string, sub_grade string, verification_status string,
+tot_hi_cred_lim float, application_type string, annual_inc_joint float,
+verification_status_joint string'
+
+2. To ensure accurate column names, we utilized the "withColumnRenamed"
+function. The column names were modified as follows:
+“.withColumnRenamed("annual_inc", "annual_income") \
+.withColumnRenamed("addr_state", "address_state") \
+.withColumnRenamed("zip_code", "address_zipcode") \
+.withColumnRenamed("country", "address_country") \
+.withColumnRenamed("tot_hi_cred_lim", "total_high_credit_limit") \
+.withColumnRenamed("annual_inc_joint", "join_annual_income") “
+
+3. To mention the time when we were processing the data we have created
+the “ingest_date” column and used the “current_timestamp()” function the
+query used is given below..
+”.withColumn("ingest_date", current_timestamp())”
+
+4. To get rid of duplicate records using below spark sql query unique records
+are selected and saved to new dataframe.
+“spark.sql("select * from Customers where annual_income is not null")”
+
+5. As the “emp_length” column i.e. year of experience is in string format and
+follows a pattern such as "10 years.". So the non digits values(i.e.(\D)) are
+replaced using “regexp_replace” function and replaced with blank space(“”)
+“.withColumn("emp_length", regexp_replace(col("emp_length"), "(\D)", ""))”
+
+6. To convert “emp_length” column which was in string format to integer
+format it was casted into integer as below.
+“.withColumn("emp_length",
+customer_income_cleaned.emp_length.cast("int"))”
+
+7. To replace the nulls in the “emp_length” column with the average
+employment length. First “avg_emp_duration” was calculated and then it was
+replaced in the “emp_length” column using the below query
+“.na.fill(avg_emp_duration, subset=["emp_length"])”
+
+8. To clean the “address_state” column, all values which were having more
+than 2 characters were replaced with the “NA” and other values remained
+unchanged, as shown in the following query..
+“.withColumn("address_state", when(length(col("address_state")) > 2,
+"NA").otherwise(col("address_state")))”
+
+9. This cleaned data is stored to the output folder using the DataFrame writer
+API in csv and parquet format.
+
+
+- Cleaning of loans_data -
+
+During the cleaning process of "loans_data" modifications were applied to the
+data initially stored in the raw folder. After processing, the cleaned data was
+saved in the cleaned folder.
+
+1. To give the correct schema we have explicitly mentioned the schema while
+creating the customer_raw dataframe. In a single step only we have changed
+the column names and mentioned the right datatypes.
+The defined schema is as below.
+loan_schema = "loan_id string, member_id string, loan_amount float,
+funded_amnt float, loan_term_months string, interest_rate float,
+monthly_installment float, issue_date string, loan_status string, loan_purpose
+string, loan_title string"
+
+2. To mention the time when we were processing the data we have created
+the “ingest_date” column and used the current_timestamp() function.
+”.withColumn("ingest_date", current_timestamp())”
+
+3. The records are dropped if in any one of the columns in the below check
+column has the null value
+columns_to_check = ["loan_amount", "funded_amnt", "loan_term_months",
+"interest_rate", "monthly_installment", "issue_date", "loan_status",
+"loan_purpose"]
+Using below query:
+loan_df_injested.na.drop(subset = columns_to_check)
+
+4. Using “regexp_replace” function “ months” in the loan_term_months column
+was replaced with the blank space(””). Then it was casted to float using the
+.cast() function. After this to convert this month into year this value was
+divided by 12 and at the end casted into integer using the below query.
+withColumn("loan_term_months", ((regexp_replace("loan_term_months", "
+months", "")).cast("float")/12).cast("int")) \
+.withColumnRenamed("loan_term_months", "loan_term_years")
+
+5. To rename the unnecessary “loan_purpose” with others “when clause” was
+used. For this the purposes beyond the defined list(loan_purpose_lookup)
+were renamed to “others” using the below query.
+loan_purpose_lookup = ["debt_consolidation", "credit_card",
+"home_improvement", "other", "major_purchase", "medical", "small_business",
+"car", "vacation",
+"moving", "house", "wedding", "renewable_energy",
+"educational"]
+.withColumn("loan_purpose",
+when(col("loan_purpose").isin(loan_purpose_lookup),
+col("loan_purpose")).otherwise("other"))
+
+6. This cleaned data is stored to the output folder using the DataFrame writer
+API in csv and parquet format.
+Cleaning of Loan_repayments
+During the cleaning process of "Loan_repayments," modifications were
+applied to the data initially stored in the raw folder. After processing, the
+
+
+- cleaned data was saved in the cleaned folder. -
+
+1. We ensured the accurate schema by explicitly specifying it while creating
+the customer_raw dataframe. In one step, we both renamed the columns and assigned the correct data types.
+The defined schema is as below.
+
+loan_repay_schema = "loan_id string, total_principle_received float,
+total_interest_received float, total_late_fee_received float,
+total_payment_received float, last_payment_amount float, last_payment_date
+string, next_payment_date string"
+
+2. To mention the time when we were processing the data we have created the “ingest_date” column and used the current_timestamp() function.
+
+”.withColumn("ingest_date", current_timestamp())”
+
+3. Records are discarded if any of the columns listed below contain null
+values.
+columns_to_check = ["total_principle_received", "total_interest_received",
+"total_late_fee_received", "total_payment_received", "last_payment_amount"]
+Using below query:
+df.na.drop(subset = columns_to_check)
+
+4. If the total_payment_received is 0.0 but total_principle_received is not 0.0,
+indicating that the principle has been paid, the situation arises where the total
+payment received is inexplicably zero. In such cases, we replace
+total_payment_received with the sum of total_principle_received,
+total_interest_received, and total_late_fee_received using a "when" clause.
+Using the below query this is achieved.
+.withColumn("total_payment_received", when(
+(col("total_payment_received") == 0.0) & (col("total_principle_received") !=
+0.0),
+col("total_principle_received")+col("total_interest_received")+col("total_late_fe
+e_received"))
+.otherwise(col("total_payment_received")))
+
+5. To remove the columns where total_payment_received is zero, we selected
+all the records where total_payment_received is not zero. Below filter
+condition is used to filter the records and then saved into another dataframe.
+..filter("total_payment_received != 0.0")
+
+6. Since last_payment_date cannot be 0, it must either contain a valid date or
+a null value. To replace null values, a "when clause" is employed, utilizing the
+following query.
+.withColumn("last_payment_date", when(
+(col("last_payment_date") == 0.0),
+None).otherwise(col("last_payment_date"))
+
+7. Similarly as next_payment_date cannot be 0, either it should be some date
+or null value. Thus to replace null values ‘when clause’ is used and the query
+used is as below.
+.withColumn("next_payment_date", when(
+(col("next_payment_date") == 0.0),
+None).otherwise(col("next_payment_date"))
+
+8.This cleaned data is stored to the output folder using the DataFrame writer
+API in csv and parquet format.
+
+
+- Cleaning of Loan_defaulters -
+
+While cleaning of Loan_defaulters following changes have been made on the
+data which was kept in the raw folder and then after processing saved in the cleaned folder.
+
+1. To give the correct schema we have explicitly mentioned the schema while
+creating the customer_raw dataframe to mention the right datatypes.
+The defined schema is as below.
+defaulter_schema = "member_id string, delinq_2yrs float, delinq_amnt float,
+pub_rec float, pub_rec_bankruptcies float, inq_last_6mths float,
+total_rec_late_fee float, mths_since_last_delinq float, mths_since_last_record
+float"
+In the above delinq_2yrs column which was in string initially was converted
+into the float datatype so any non-float values were converted into nulls.
+
+2. Using below query delinq_2yrs which was earlier casted to float was converted into integer as time period(i.e.years) should be an integer. And all the nulls were replaced by zero as the time period(i.e.years) cannot be null
+either it should be some integer or 0. The query used is as follows.
+.withColumn("delinq_2yrs", col("delinq_2yrs").cast("integer")).fillna(0, subset =
+["delinq_2yrs"])
+
+3. The data was stored into 2 separate files
+
+a.The first dataset contains details of customers who missed or delayed payments, based on the conditions delinq_2yrs > 0 or mths_since_last_delinq
+> 0. This dataset focuses on delinquency and includes the following columns:
+member_id, delinq_2yrs, delinq_amnt, int(mths_since_last_delinq). The records were filtered using the query:
+spark.sql("select member_id, delinq_2yrs, delinq_amnt,
+int(mths_since_last_delinq) from loan_defaulter where delinq_2yrs>0 or mths_since_last_delinq>0")
+
+b. In the second dataset information about only those member_id (borrowers)
+is considered for whom either there is public record(pub_rec) or bankruptcy
+record (pub_rec_bankruptcies) or enquiries in the last 6 months
+(inq_last_6mths). This dataset is basically related to public records and the
+enquiries.
+
+4. Both these cleaned dataset are stored to the output folder using the
+DataFrame writer API in csv and parquet format.
+
+
+
+- Cleaning the records and creating a Processed Dataframe -
+
+loans_def_processed_df = loans_def_raw_df.withColumn(“delinq_2yrs”,
+col(“delinq_2yrs”).cast(“integer”).fillna(0, subset=[“delinq_2yrs”])
+
+loans_def_processed_pub_rec_df = loans_def_raw_df.withColumn(“pub_rec”,
+col(“pub_rec”).cast(“integer”).fillna(0, subset=[“pub_rec”])
+
+loans_def_processed_pub_rec_bankruptcies_df =
+loans_def_processed_pub_rec_df.withColumn(“pub_rec_bankruptcies”,
+col(“pub_rec_bankruptcies”).cast(“integer”).fillna(0,
+subset=[“pub_rec_bankruptcies”])
+
+loans_def_processed_inq_last_6mths_df =
+loans_def_processed_pub_rec_bankruptcies_df.withColumn(“inq_last_6mths”
+, col(“inq_last_6mths”).cast(“integer”).fillna(0, subset=[“inq_last_6mths”])
+
+
+
+- Creating a temporary table on the above processed data -
+
+loans_def_processed_inq_last_6mths_df.
+createOrReplaceTempView(“loan_defaulters”)
+
+
+
+Creating a detailed Dataframe including the above mentioned columns from the loan_defaulters data used for the calculation of loan score.
+
+loan_defaulters_detail_records_enq_df = spark.sql(“select member_id,
+pub_rec, pub_rec_bankruptcies, inq_last_6mths from loan_defaulters”)
+
+
+
+Writing back the Processed data to the Cleaned folder
+
+- Writing back in CSV Format -
+
+loan_defaulters_detail_records_enq_df.write \
+.option(“header”, True) \
+.format(“csv”) \
+.mode(“overwrite”) \
+.option(“path”,
+“/public/trendytech/lendingclubproject/cleaned/Loan_defaulters_detail_records
+_enq_csv”) \
+.save()
+
+
+
+
+- Writing back in PARQUET Format -
+
+loan_defaulters_detail_records_enq_df.write \
+.format(“parquet”) \
+.mode(“overwrite”) \
+.option(“path”,
+“/public/trendytech/lendingclubproject/cleaned/Loan_defaulters_detail_records
+_enq_csv”) \
+.save()
