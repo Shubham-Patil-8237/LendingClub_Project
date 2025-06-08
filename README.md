@@ -44,5 +44,5 @@ The goal is to process, clean, and transform a 1.7 GB Lending Club dataset consi
 ### 6. Final Output
 - Reordered and selected important final columns
 - Printed transformed data using `.show()`
-- Optional: Saved to Hive table `lending_club_cleaned`
+- Optional: Saved to Hive table `lending_club_cleaned`.
 
